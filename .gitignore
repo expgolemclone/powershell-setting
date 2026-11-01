@@ -1,7 +1,6 @@
 *
 !.gitignore
 !Microsoft.PowerShell_profile.ps1
-!README.md
 !setup.ps1
 !tests/
 !tests/*.Tests.ps1
