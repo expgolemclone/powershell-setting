@@ -1,13 +1,13 @@
 BeforeAll {
     $repositoryRoot = Split-Path -Parent $PSScriptRoot
     $setup = Join-Path $repositoryRoot 'setup.ps1'
-    $sourceProfile = Join-Path $repositoryRoot 'Microsoft.PowerShell_profile.ps1'
+    $sourceProfile = Join-Path $repositoryRoot 'profile.ps1'
     $newItem = Get-Command New-Item -CommandType Cmdlet
 
     function Invoke-TestSetup {
         param([string]$Directory, [switch]$WhatIf)
         $PROFILE = [pscustomobject]@{
-            CurrentUserCurrentHost = Join-Path $Directory 'Microsoft.PowerShell_profile.ps1'
+            CurrentUserAllHosts = Join-Path $Directory 'profile.ps1'
         }
         & $setup -WhatIf:$WhatIf
     }
@@ -16,7 +16,7 @@ BeforeAll {
 Describe 'Profile file setup' {
     BeforeEach {
         $directory = Join-Path $TestDrive ([guid]::NewGuid().ToString())
-        $profilePath = Join-Path $directory 'Microsoft.PowerShell_profile.ps1'
+        $profilePath = Join-Path $directory 'profile.ps1'
     }
 
     AfterEach {
@@ -67,7 +67,7 @@ Describe 'Profile file setup' {
     It 'preserves an existing profile and directory junction' {
         $target = Join-Path $TestDrive ([guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path $target | Out-Null
-        $existingProfile = Join-Path $target 'Microsoft.PowerShell_profile.ps1'
+        $existingProfile = Join-Path $target 'profile.ps1'
         Set-Content -LiteralPath $existingProfile -Value 'keep'
         New-Item -ItemType Junction -Path $directory -Target $target | Out-Null
         try {

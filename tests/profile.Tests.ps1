@@ -1,6 +1,6 @@
 BeforeAll {
     $ErrorActionPreference = 'Stop'
-    $profilePath = Join-Path (Split-Path -Parent $PSScriptRoot) 'Microsoft.PowerShell_profile.ps1'
+    $profilePath = Join-Path (Split-Path -Parent $PSScriptRoot) 'profile.ps1'
 }
 
 Describe 'PowerShell profile' {

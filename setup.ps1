@@ -2,11 +2,11 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-$profilePath = $PROFILE.CurrentUserCurrentHost
+$profilePath = $PROFILE.CurrentUserAllHosts
 
 if ($PSCmdlet.ShouldProcess($profilePath, 'Create PowerShell profile symbolic link')) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $profilePath) -Force | Out-Null
     New-Item -ItemType SymbolicLink -Path $profilePath -Target (
-        Join-Path $PSScriptRoot 'Microsoft.PowerShell_profile.ps1'
+        Join-Path $PSScriptRoot 'profile.ps1'
     ) | Out-Null
 }
