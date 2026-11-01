@@ -11,11 +11,11 @@ Describe 'PowerShell profile' {
         @($parseErrors).Count | Should -Be 0
     }
 
-    It 'uses native Pi, Codex and uv shims with argument and input forwarding through p and u' {
+    It 'uses native Neovim, Pi, Codex and uv shims with argument and input forwarding through n, p and u' {
         # Stand-ins for npm-generated scripts, without starting a CLI or model.
         $shimDirectory = Join-Path $TestDrive 'agent-shims'
         New-Item -ItemType Directory -Path $shimDirectory | Out-Null
-        foreach ($name in @('pi', 'codex', 'uv')) {
+        foreach ($name in @('nvim', 'pi', 'codex', 'uv')) {
             Set-Content -LiteralPath (Join-Path $shimDirectory "$name.ps1") -Value @'
 [pscustomobject]@{ Arguments = @($args); Incoming = @($input) }
 '@
@@ -25,16 +25,17 @@ $ErrorActionPreference = 'Stop'
 . $args[0]
 . $args[0]
 $env:PATH = $args[1] + [IO.Path]::PathSeparator + $env:PATH
+if ((Get-Alias n).Definition -ne 'nvim') { throw 'n must resolve to nvim' }
 if ((Get-Alias p).Definition -ne 'pi') { throw 'p must resolve to pi' }
 if ((Get-Alias u).Definition -ne 'uv') { throw 'u must resolve directly to uv' }
-foreach ($name in @('pi', 'codex', 'uv')) {
+foreach ($name in @('nvim', 'pi', 'codex', 'uv')) {
     $command = Get-Command $name
     if ($command.CommandType -ne 'ExternalScript' -or
         $command.Source -ne (Join-Path $args[1] "$name.ps1")) {
         throw "$name did not resolve to its standard shim"
     }
 }
-foreach ($name in @('pi', 'p', 'codex', 'uv', 'u')) {
+foreach ($name in @('nvim', 'n', 'pi', 'p', 'codex', 'uv', 'u')) {
     $result = & $name --help '--' 'two words' '"quoted"' ''
     $expected = @('--help', '--', 'two words', '"quoted"', '')
     $actualJson = ConvertTo-Json -InputObject $result.Arguments -Compress
@@ -171,6 +172,20 @@ if ($shallow[-1].Trim() -ne '3 directories') { throw 'Directory-only depth limit
                 if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force -ErrorAction Stop }
             }
         }
+    }
+
+    It 'removes the retired Markdown renderer shortcuts' {
+        $check = @'
+$ErrorActionPreference = 'Stop'
+. $args[0]
+. $args[0]
+foreach ($name in @('m', 'g')) {
+    if (Test-Path "Alias:$name") { throw "Retired renderer alias remains: $name" }
+}
+if (Test-Path Function:Invoke-GlowDark) { throw 'Retired renderer function remains' }
+'@
+        & pwsh -NoProfile -Command "& { $check } '$($profilePath.Replace("'", "''"))'"
+        $LASTEXITCODE | Should -Be 0
     }
 
     It 'loads in a fresh shell while preserving the other helpers' {

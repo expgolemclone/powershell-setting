@@ -23,13 +23,6 @@ Set-Alias -Name n -Value nvim
 Set-Alias -Name p -Value pi
 Set-Alias -Name u -Value uv
 Set-Alias -Name sudo -Value gsudo
-Set-Alias -Name m -Value mdcat
-
-function Invoke-GlowDark {
-    glow --style dark @args
-}
-
-Set-Alias -Name g -Value Invoke-GlowDark
 
 function Invoke-ListAll {
     Get-ChildItem -Force @args
