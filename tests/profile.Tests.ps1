@@ -11,6 +11,43 @@ Describe 'PowerShell profile' {
         @($parseErrors).Count | Should -Be 0
     }
 
+    It 'clears the screen before listing and forwards listing arguments through l' {
+        $directory = Join-Path $TestDrive 'list-files'
+        New-Item -ItemType Directory -Path $directory | Out-Null
+        Set-Content -LiteralPath (Join-Path $directory 'one.txt') -Value ''
+        Set-Content -LiteralPath (Join-Path $directory 'two.log') -Value ''
+        $check = @'
+$ErrorActionPreference = 'Stop'
+. $args[0]
+if ((Get-Command l).CommandType -ne 'Function') { throw 'l must be a function' }
+$events = [System.Collections.Generic.List[string]]::new()
+function Clear-Host { $events.Add('clear') }
+function Get-ChildItem {
+    $events.Add('list')
+    Microsoft.PowerShell.Management\Get-ChildItem @args
+}
+Push-Location -LiteralPath $args[1]
+try {
+    $events.Clear()
+    $all = @(l)
+    if (($events -join ',') -ne 'clear,list') { throw 'l must clear before listing' }
+    if ((@($all.Name | Sort-Object) -join ',') -ne 'one.txt,two.log') {
+        throw 'l must list the current directory'
+    }
+    $events.Clear()
+    $filtered = @(l -LiteralPath $args[1] -Filter '*.txt' -Name)
+    if (($events -join ',') -ne 'clear,list') { throw 'l must clear before listing with arguments' }
+    if ($filtered.Count -ne 1 -or $filtered[0] -ne 'one.txt') {
+        throw 'l must forward directory listing arguments'
+    }
+} finally {
+    Pop-Location
+}
+'@
+        & pwsh -NoProfile -Command "& { $check } '$($profilePath.Replace("'", "''"))' '$($directory.Replace("'", "''"))'"
+        $LASTEXITCODE | Should -Be 0
+    }
+
     It 'uses native Neovim, Pi, Codex and uv shims with argument and input forwarding through n, p and u' {
         $shimDirectory = Join-Path $TestDrive 'agent-shims'
         New-Item -ItemType Directory -Path $shimDirectory | Out-Null

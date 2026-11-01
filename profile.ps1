@@ -5,6 +5,11 @@ if ($IsWindows) {
     $OutputEncoding = $utf8NoBom
 }
 
+function l {
+    Clear-Host
+    Get-ChildItem @args
+}
+
 Set-Alias -Name c -Value Clear-Host
 Set-Alias -Name n -Value nvim
 Set-Alias -Name p -Value pi
