@@ -10,10 +10,17 @@ function l {
     Get-ChildItem @args
 }
 
+function u {
+    if ($MyInvocation.ExpectingInput) {
+        $input | uv run python @args
+    } else {
+        uv run python @args
+    }
+}
+
 Set-Alias -Name c -Value Clear-Host
 Set-Alias -Name n -Value nvim
 Set-Alias -Name p -Value pi
-Set-Alias -Name u -Value uv
 
 $readableWhite = $PSStyle.Foreground.White
 

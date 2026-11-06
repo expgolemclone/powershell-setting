@@ -48,12 +48,12 @@ try {
         $LASTEXITCODE | Should -Be 0
     }
 
-    It 'uses native Neovim, Pi, Codex and uv shims with argument and input forwarding through n, p and u' {
+    It 'forwards arguments and input through the command shortcuts' {
         $shimDirectory = Join-Path $TestDrive 'agent-shims'
         New-Item -ItemType Directory -Path $shimDirectory | Out-Null
         foreach ($name in @('nvim', 'pi', 'codex', 'uv')) {
             Set-Content -LiteralPath (Join-Path $shimDirectory "$name.ps1") -Value @'
-[pscustomobject]@{ Arguments = @($args); Incoming = @($input) }
+[pscustomobject]@{ Arguments = @($args); Incoming = @($input); ExpectingInput = $MyInvocation.ExpectingInput }
 '@
         }
         $check = @'
@@ -63,7 +63,7 @@ $ErrorActionPreference = 'Stop'
 $env:PATH = $args[1] + [IO.Path]::PathSeparator + $env:PATH
 if ((Get-Alias n).Definition -ne 'nvim') { throw 'n must resolve to nvim' }
 if ((Get-Alias p).Definition -ne 'pi') { throw 'p must resolve to pi' }
-if ((Get-Alias u).Definition -ne 'uv') { throw 'u must resolve directly to uv' }
+if ((Get-Command u).CommandType -ne 'Function') { throw 'u must be a function' }
 foreach ($name in @('nvim', 'pi', 'codex', 'uv')) {
     $command = Get-Command $name
     if ($command.CommandType -ne 'ExternalScript' -or
@@ -74,6 +74,7 @@ foreach ($name in @('nvim', 'pi', 'codex', 'uv')) {
 foreach ($name in @('nvim', 'n', 'pi', 'p', 'codex', 'uv', 'u')) {
     $result = & $name --help '--' 'two words' '"quoted"' ''
     $expected = @('--help', '--', 'two words', '"quoted"', '')
+    if ($name -eq 'u') { $expected = @('run', 'python') + $expected }
     $actualJson = ConvertTo-Json -InputObject $result.Arguments -Compress
     $expectedJson = ConvertTo-Json -InputObject $expected -Compress
     if ($actualJson -cne $expectedJson) { throw "Argument corruption for $name" }
@@ -82,8 +83,58 @@ foreach ($name in @('nvim', 'n', 'pi', 'p', 'codex', 'uv', 'u')) {
         throw "Lost pipeline input for $name"
     }
 }
+$direct = u
+if (($direct.Arguments -join ',') -ne 'run,python') { throw 'u must run Python by default' }
+if ($direct.ExpectingInput) { throw 'u must not redirect input when invoked without a pipeline' }
+$piped = 'first', 'second' | u -
+if (($piped.Arguments -join ',') -ne 'run,python,-' -or
+    ($piped.Incoming -join ',') -ne 'first,second') {
+    throw 'u must pass all pipeline input to a single Python invocation'
+}
 '@
         & pwsh -NoProfile -Command "& { $check } '$($profilePath.Replace("'", "''"))' '$($shimDirectory.Replace("'", "''"))'"
+        $LASTEXITCODE | Should -Be 0
+    }
+
+    It 'runs Python in the uv project with arguments, standard input and exit codes' {
+        $cacheDirectory = Join-Path $TestDrive 'uv-cache'
+        $project = Join-Path $TestDrive 'uv-project'
+        New-Item -ItemType Directory -Path $project | Out-Null
+        Set-Content -LiteralPath (Join-Path $project 'pyproject.toml') -Value @'
+[project]
+name = "powershell-u-test"
+version = "0.0.0"
+requires-python = ">=3.10"
+'@
+        $check = @'
+$ErrorActionPreference = 'Stop'
+$env:UV_NO_PROJECT = '0'
+$env:UV_NO_SYNC = '0'
+$env:UV_PYTHON_DOWNLOADS = 'never'
+$env:UV_OFFLINE = '1'
+$env:UV_CACHE_DIR = $args[1]
+. $args[0]
+Push-Location -LiteralPath $args[2]
+try {
+    $prefix = u -c 'import sys; print(sys.prefix)'
+    if ($LASTEXITCODE -ne 0 -or $prefix -ne (Join-Path $args[2] '.venv')) {
+        throw 'u must use the uv project environment'
+    }
+    $result = u -c 'import sys; print("|".join(sys.argv[1:]))' 'two words' '"quoted"' ''
+    if ($LASTEXITCODE -ne 0 -or $result -cne 'two words|"quoted"|') {
+        throw 'u must pass Python arguments unchanged'
+    }
+    $result = 'first line', 'second line' | u -c 'import sys; print("|".join(sys.stdin.read().splitlines()))'
+    if ($LASTEXITCODE -ne 0 -or $result -cne 'first line|second line') {
+        throw 'u must pass standard input to Python'
+    }
+    u -c 'import sys; sys.exit(23)'
+    if ($LASTEXITCODE -ne 23) { throw 'u must preserve the Python exit code' }
+} finally {
+    Pop-Location
+}
+'@
+        & pwsh -NoProfile -Command "& { $check } '$($profilePath.Replace("'", "''"))' '$($cacheDirectory.Replace("'", "''"))' '$($project.Replace("'", "''"))'"
         $LASTEXITCODE | Should -Be 0
     }
 
